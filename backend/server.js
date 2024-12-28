@@ -20,6 +20,10 @@ const predictLimiter = rateLimit({
     "Too many prediction requests from this IP, please try again after a minute",
 });
 
+// Track training counts per digit
+const digitTrainingCounts = new Array(10).fill(0);
+const MAX_TRAINING_PER_DIGIT = 200;
+
 // Task queue implementation
 class TaskQueue {
   constructor() {
@@ -152,6 +156,17 @@ async function processImageData(base64Image) {
 app.post("/train", trainLimiter, async (req, res) => {
   try {
     const { digit, imageData } = req.body;
+
+    // Check if we've reached the training limit for this digit
+    if (digitTrainingCounts[digit] >= MAX_TRAINING_PER_DIGIT) {
+      return res.status(429).json({
+        success: false,
+        message: `Training limit reached for digit ${digit}. Maximum ${MAX_TRAINING_PER_DIGIT} samples allowed.`,
+      });
+    }
+
+    // Increment the counter for this digit
+    digitTrainingCounts[digit]++;
 
     // Add task to queue without waiting for completion
     taskQueue.addTask(async () => {

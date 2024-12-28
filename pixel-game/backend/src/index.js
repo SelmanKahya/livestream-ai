@@ -19,15 +19,11 @@ app.use(express.json());
 // Canvas configuration
 const CANVAS_WIDTH = 50;
 const CANVAS_HEIGHT = 50;
-const COOLDOWN_PERIOD = 30 * 1000; // 30 seconds in milliseconds
 
 // Initialize empty canvas
 const canvas = Array(CANVAS_HEIGHT)
   .fill()
   .map(() => Array(CANVAS_WIDTH).fill("#FFFFFF"));
-
-// Store last pixel placement time for each IP
-const userLastPixel = new Map();
 
 // Get current canvas state
 app.get("/api/canvas", (req, res) => {
@@ -56,7 +52,6 @@ app.get("/api/canvas", (req, res) => {
 // Place a pixel
 app.post("/api/pixel", (req, res) => {
   const { x, y, color } = req.body;
-  const ip = req.ip;
 
   console.log(
     `Received pixel placement request: x=${x}, y=${y}, color=${color}`
@@ -74,22 +69,8 @@ app.post("/api/pixel", (req, res) => {
     return res.status(400).json({ error: "Invalid color format" });
   }
 
-  // Check cooldown
-  const lastPlacement = userLastPixel.get(ip);
-  const now = Date.now();
-  if (lastPlacement && now - lastPlacement < COOLDOWN_PERIOD) {
-    const remainingTime = Math.ceil(
-      (COOLDOWN_PERIOD - (now - lastPlacement)) / 1000
-    );
-    console.log(`Cooldown active, ${remainingTime} seconds remaining`);
-    return res.status(429).json({
-      error: `Please wait ${remainingTime} seconds before placing another pixel`,
-    });
-  }
-
   // Update canvas
   canvas[y][x] = color;
-  userLastPixel.set(ip, now);
   console.log(`Pixel placed successfully at (${x}, ${y}) with color ${color}`);
   console.log(`Canvas state at position: ${canvas[y][x]}`);
 

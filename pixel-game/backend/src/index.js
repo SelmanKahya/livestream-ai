@@ -33,7 +33,7 @@ const userLastPixel = new Map();
 // Rate limiting middleware - one request per 30 seconds per IP
 const pixelLimiter = rateLimit({
   windowMs: COOLDOWN_PERIOD,
-  max: 1,
+  max: 100000,
   message: { error: "Please wait 30 seconds before placing another pixel" },
 });
 

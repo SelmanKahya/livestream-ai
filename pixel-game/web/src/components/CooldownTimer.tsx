@@ -41,16 +41,25 @@ export const CooldownTimer: React.FC<CooldownTimerProps> = ({
 
   if (timeLeft === 0) return null;
 
+  const secondsLeft = Math.ceil(timeLeft / 1000);
+
   return (
     <div
       style={{
-        padding: "8px 16px",
-        backgroundColor: "#f0f0f0",
-        borderRadius: "4px",
+        position: "fixed",
+        top: "20px",
+        right: "20px",
+        padding: "12px 24px",
+        backgroundColor: "#333",
+        color: "white",
+        borderRadius: "8px",
         fontWeight: "bold",
+        fontSize: "18px",
+        boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+        zIndex: 1000,
       }}
     >
-      Wait {Math.ceil(timeLeft / 1000)}s
+      {secondsLeft} saniye kaldı
     </div>
   );
 };

@@ -63,7 +63,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
         <CanvasDraw
           ref={canvasRef}
           brushColor="#000000"
-          brushRadius={4}
+          brushRadius={18}
           canvasWidth={canvasSize}
           canvasHeight={canvasSize}
           hideGrid

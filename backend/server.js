@@ -5,6 +5,8 @@ const tf = require("@tensorflow/tfjs");
 const { createCanvas, Image } = require("canvas");
 const rateLimit = require("express-rate-limit");
 const mnist = require("mnist");
+const fs = require("fs");
+const path = require("path");
 
 // Rate limiting configuration
 const predictLimiter = rateLimit({
@@ -29,6 +31,14 @@ app.use(bodyParser.json({ limit: "10mb" }));
 
 // Initialize the model
 let model;
+
+// Store training metrics
+let trainingMetrics = {
+  loss: [],
+  accuracy: [],
+  val_loss: [],
+  val_accuracy: [],
+};
 
 async function createModel() {
   model = tf.sequential();
@@ -117,7 +127,7 @@ async function trainWithMNIST() {
   );
 
   console.log("Training model with MNIST data (digits 0-3 only)...");
-  await model.fit(trainImages, trainLabels, {
+  const history = await model.fit(trainImages, trainLabels, {
     epochs: 12,
     batchSize: 32,
     validationSplit: 0.2,
@@ -127,7 +137,6 @@ async function trainWithMNIST() {
       },
       onBatchEnd: (batch, logs) => {
         if (batch % 5 === 0) {
-          // Reduced logging frequency
           process.stdout.write(
             `Batch ${batch}: loss = ${logs.loss.toFixed(4)} `
           );
@@ -139,15 +148,28 @@ async function trainWithMNIST() {
         console.log(`  Accuracy: ${logs.acc.toFixed(4)}`);
         console.log(`  Validation Loss: ${logs.val_loss.toFixed(4)}`);
         console.log(`  Validation Accuracy: ${logs.val_acc.toFixed(4)}`);
+
+        // Store metrics
+        trainingMetrics.loss.push(logs.loss);
+        trainingMetrics.accuracy.push(logs.acc);
+        trainingMetrics.val_loss.push(logs.val_loss);
+        trainingMetrics.val_accuracy.push(logs.val_acc);
       },
     },
   });
+
+  // Save training metrics to file
+  fs.writeFileSync(
+    path.join(__dirname, "training_metrics.json"),
+    JSON.stringify(trainingMetrics, null, 2)
+  );
 
   // Clean up tensors
   trainImages.dispose();
   trainLabels.dispose();
 
   console.log("MNIST training completed!");
+  return history;
 }
 
 // Helper function to process image data
@@ -267,6 +289,22 @@ app.post("/guess", predictLimiter, async (req, res) => {
     res.json({ prediction: digit, confidence });
   } catch (error) {
     console.error("Prediction error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add new endpoint to get training metrics
+app.get("/training-metrics", (req, res) => {
+  try {
+    const metricsPath = path.join(__dirname, "training_metrics.json");
+    if (fs.existsSync(metricsPath)) {
+      const metrics = JSON.parse(fs.readFileSync(metricsPath, "utf8"));
+      res.json(metrics);
+    } else {
+      res.json(trainingMetrics);
+    }
+  } catch (error) {
+    console.error("Error reading training metrics:", error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -10,7 +10,7 @@ interface TrainingFlowProps {
 const TrainingFlow: React.FC<TrainingFlowProps> = ({ onComplete }) => {
   const [remainingDigits, setRemainingDigits] = React.useState<number[]>(() => {
     // Initialize with shuffled array of digits 0-9
-    return Array.from({ length: 10 }, (_, i) => i).sort(
+    return Array.from({ length: 4 }, (_, i) => i).sort(
       () => Math.random() - 0.5
     );
   });
@@ -21,10 +21,14 @@ const TrainingFlow: React.FC<TrainingFlowProps> = ({ onComplete }) => {
   const handleSubmit = async (imageData: string) => {
     setIsLoading(true);
     try {
+      // Send single training request instead of 5 duplicates
       await axios.post(`${BACKEND_BASE_URL}/train`, {
         digit: currentDigit,
         imageData,
       });
+
+      // Add a small delay to allow the model to process
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       if (remainingDigits.length > 1) {
         setRemainingDigits((prev) => prev.slice(1));

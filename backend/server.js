@@ -4,59 +4,15 @@ const bodyParser = require("body-parser");
 const tf = require("@tensorflow/tfjs");
 const { createCanvas, Image } = require("canvas");
 const rateLimit = require("express-rate-limit");
+const mnist = require("mnist");
 
 // Rate limiting configuration
-const trainLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 15, // Limit each IP to 10 training requests per minute
-  message:
-    "Too many training requests from this IP, please try again after a minute",
-});
-
 const predictLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 30, // Limit each IP to 30 prediction requests per minute
   message:
     "Too many prediction requests from this IP, please try again after a minute",
 });
-
-// Track training counts per digit
-const digitTrainingCounts = new Array(10).fill(0);
-const MAX_TRAINING_PER_DIGIT = 200;
-
-// Task queue implementation
-class TaskQueue {
-  constructor() {
-    this.queue = [];
-    this.processing = false;
-  }
-
-  async addTask(task) {
-    return new Promise((resolve, reject) => {
-      this.queue.push({ task, resolve, reject });
-      this.processNext();
-    });
-  }
-
-  async processNext() {
-    if (this.processing || this.queue.length === 0) return;
-
-    this.processing = true;
-    const { task, resolve, reject } = this.queue.shift();
-
-    try {
-      const result = await task();
-      resolve(result);
-    } catch (error) {
-      reject(error);
-    } finally {
-      this.processing = false;
-      this.processNext();
-    }
-  }
-}
-
-const taskQueue = new TaskQueue();
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -77,21 +33,11 @@ let model;
 async function createModel() {
   model = tf.sequential();
 
-  // Add layers (CNN architecture for MNIST-style digit recognition)
+  // Simple but effective CNN architecture
   model.add(
     tf.layers.conv2d({
       inputShape: [28, 28, 1],
-      filters: 32,
-      kernelSize: 3,
-      activation: "relu",
-    })
-  );
-
-  model.add(tf.layers.maxPooling2d({ poolSize: 2 }));
-
-  model.add(
-    tf.layers.conv2d({
-      filters: 64,
+      filters: 16,
       kernelSize: 3,
       activation: "relu",
     })
@@ -99,18 +45,109 @@ async function createModel() {
 
   model.add(tf.layers.maxPooling2d({ poolSize: 2 }));
   model.add(tf.layers.flatten());
-  model.add(tf.layers.dense({ units: 128, activation: "relu" }));
+  model.add(tf.layers.dense({ units: 64, activation: "relu" }));
   model.add(tf.layers.dropout({ rate: 0.2 }));
-  model.add(tf.layers.dense({ units: 10, activation: "softmax" }));
+  model.add(tf.layers.dense({ units: 4, activation: "softmax" }));
 
   // Compile the model
   model.compile({
-    optimizer: "adam",
+    optimizer: tf.train.adam(0.001), // Explicit learning rate
     loss: "categoricalCrossentropy",
     metrics: ["accuracy"],
   });
 
   return model;
+}
+
+// Train model with MNIST data
+async function trainWithMNIST() {
+  console.log("Loading MNIST dataset...");
+  const set = mnist.set(8000, 1000); // Increased dataset size
+
+  // Group samples by digit
+  const digitGroups = [[], [], [], []];
+  set.training.forEach((sample) => {
+    const digit = sample.output.indexOf(1);
+    if (digit >= 0 && digit <= 3) {
+      digitGroups[digit].push(sample);
+    }
+  });
+
+  // Take equal samples from each digit (500 samples per digit)
+  const samplesPerDigit = 500;
+  const balancedTraining = [];
+  digitGroups.forEach((group, digit) => {
+    const samples = group.slice(0, samplesPerDigit);
+    balancedTraining.push(...samples);
+    console.log(`Using ${samples.length} samples for digit ${digit}`);
+  });
+
+  // Shuffle the balanced dataset
+  for (let i = balancedTraining.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [balancedTraining[i], balancedTraining[j]] = [
+      balancedTraining[j],
+      balancedTraining[i],
+    ];
+  }
+
+  console.log(
+    `Training with ${balancedTraining.length} total samples (balanced across digits 0-3)...`
+  );
+
+  // Reshape the input data into proper 4D format [samples][width][height][channels]
+  const reshapedInputs = [];
+  balancedTraining.forEach((sample) => {
+    const imageArray = [];
+    for (let i = 0; i < 28; i++) {
+      const row = [];
+      for (let j = 0; j < 28; j++) {
+        row.push([sample.input[i * 28 + j]]);
+      }
+      imageArray.push(row);
+    }
+    reshapedInputs.push(imageArray);
+  });
+
+  // Convert training data to tensors
+  const trainImages = tf.tensor4d(reshapedInputs);
+  const trainLabels = tf.tensor2d(
+    balancedTraining.map((sample) => sample.output.slice(0, 4)),
+    [balancedTraining.length, 4]
+  );
+
+  console.log("Training model with MNIST data (digits 0-3 only)...");
+  await model.fit(trainImages, trainLabels, {
+    epochs: 12,
+    batchSize: 32,
+    validationSplit: 0.2,
+    callbacks: {
+      onEpochBegin: (epoch) => {
+        console.log(`\nStarting Epoch ${epoch + 1} of 12...`);
+      },
+      onBatchEnd: (batch, logs) => {
+        if (batch % 5 === 0) {
+          // Reduced logging frequency
+          process.stdout.write(
+            `Batch ${batch}: loss = ${logs.loss.toFixed(4)} `
+          );
+        }
+      },
+      onEpochEnd: (epoch, logs) => {
+        console.log(`\nEpoch ${epoch + 1} Complete:`);
+        console.log(`  Loss: ${logs.loss.toFixed(4)}`);
+        console.log(`  Accuracy: ${logs.acc.toFixed(4)}`);
+        console.log(`  Validation Loss: ${logs.val_loss.toFixed(4)}`);
+        console.log(`  Validation Accuracy: ${logs.val_acc.toFixed(4)}`);
+      },
+    },
+  });
+
+  // Clean up tensors
+  trainImages.dispose();
+  trainLabels.dispose();
+
+  console.log("MNIST training completed!");
 }
 
 // Helper function to process image data
@@ -125,6 +162,10 @@ async function processImageData(base64Image) {
       const canvas = createCanvas(28, 28);
       const ctx = canvas.getContext("2d");
 
+      // Clear the canvas to white first
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, 28, 28);
+
       // Draw and resize the image
       ctx.drawImage(img, 0, 0, 28, 28);
 
@@ -133,12 +174,59 @@ async function processImageData(base64Image) {
 
       // Convert to grayscale and normalize
       const grayscale = new Float32Array(28 * 28);
-      for (let i = 0; i < imageData.data.length; i += 4) {
-        const avg =
-          (imageData.data[i] + imageData.data[i + 1] + imageData.data[i + 2]) /
-          3;
-        grayscale[i / 4] = avg / 255.0;
+
+      // Find the min and max values for better thresholding
+      let min = 255;
+      let max = 0;
+      for (let y = 0; y < 28; y++) {
+        for (let x = 0; x < 28; x++) {
+          const i = (y * 28 + x) * 4;
+          const avg =
+            (imageData.data[i] +
+              imageData.data[i + 1] +
+              imageData.data[i + 2]) /
+            3;
+          min = Math.min(min, avg);
+          max = Math.max(max, avg);
+        }
       }
+
+      // Calculate adaptive threshold
+      const threshold = (min + max) / 2;
+      console.log(
+        `Image stats - Min: ${min}, Max: ${max}, Threshold: ${threshold}`
+      );
+
+      // Debug visualization string
+      let visualizationStr = "\nInput Image (28x28):\n";
+      let rawValuesStr = "\nRaw Values (28x28):\n";
+
+      for (let y = 0; y < 28; y++) {
+        let row = "";
+        let rawRow = "";
+        for (let x = 0; x < 28; x++) {
+          const i = (y * 28 + x) * 4;
+          const avg =
+            (imageData.data[i] +
+              imageData.data[i + 1] +
+              imageData.data[i + 2]) /
+            3;
+
+          // Normalize for the model (invert the values since MNIST expects white on black)
+          grayscale[y * 28 + x] = 1.0 - avg / 255.0;
+
+          // Add to visualization (1 for dark pixels, 0 for light)
+          row += avg < threshold ? "1" : "0";
+          // Add raw value visualization
+          rawRow += avg < 50 ? "#" : avg < 128 ? "+" : avg < 200 ? "." : " ";
+        }
+        visualizationStr += row + "\n";
+        rawValuesStr += rawRow + "\n";
+      }
+
+      // Log both visualizations
+      console.log(visualizationStr);
+      console.log(rawValuesStr);
 
       // Create tensor and reshape
       const tensor = tf.tensor(grayscale, [1, 28, 28, 1]);
@@ -151,59 +239,6 @@ async function processImageData(base64Image) {
     img.src = "data:image/png;base64," + base64Data;
   });
 }
-
-// Training endpoint
-app.post("/train", trainLimiter, async (req, res) => {
-  try {
-    const { digit, imageData } = req.body;
-
-    // Check if we've reached the training limit for this digit
-    if (digitTrainingCounts[digit] >= MAX_TRAINING_PER_DIGIT) {
-      return res.status(429).json({
-        success: false,
-        message: `Training limit reached for digit ${digit}. Maximum ${MAX_TRAINING_PER_DIGIT} samples allowed.`,
-      });
-    }
-
-    // Increment the counter for this digit
-    digitTrainingCounts[digit]++;
-
-    // Add task to queue without waiting for completion
-    taskQueue.addTask(async () => {
-      try {
-        console.log("Training digit:", digit);
-
-        if (!model) {
-          model = await createModel();
-        }
-
-        // Process image data
-        const tensor = await processImageData(imageData);
-        const label = tf.oneHot(tf.tensor1d([digit], "int32"), 10);
-
-        // Train the model
-        await model.fit(tensor, label, {
-          epochs: 1,
-          batchSize: 1,
-        });
-
-        // Cleanup
-        tensor.dispose();
-        label.dispose();
-
-        console.log("Training completed for digit:", digit);
-      } catch (error) {
-        console.error("Training error for digit", digit, ":", error);
-      }
-    });
-
-    // Return success response after task is queued
-    res.json({ success: true, message: "Training task queued" });
-  } catch (error) {
-    console.error("Error queueing training task:", error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 
 // Prediction endpoint
 app.post("/guess", predictLimiter, async (req, res) => {
@@ -237,9 +272,14 @@ app.post("/guess", predictLimiter, async (req, res) => {
 });
 
 // Start the server
-app.listen(port, () => {
+app.listen(port, async () => {
   console.log(`Server running on port ${port}`);
-  createModel().then(() => {
+  try {
+    model = await createModel();
     console.log("TensorFlow model initialized");
-  });
+    await trainWithMNIST();
+    console.log("Model is ready for predictions!");
+  } catch (error) {
+    console.error("Error initializing model:", error);
+  }
 });

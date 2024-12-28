@@ -1,5 +1,4 @@
 const express = require("express");
-const rateLimit = require("express-rate-limit");
 const cors = require("cors");
 
 const app = express();
@@ -30,13 +29,6 @@ const canvas = Array(CANVAS_HEIGHT)
 // Store last pixel placement time for each IP
 const userLastPixel = new Map();
 
-// Rate limiting middleware - one request per 30 seconds per IP
-const pixelLimiter = rateLimit({
-  windowMs: COOLDOWN_PERIOD,
-  max: 100000,
-  message: { error: "Please wait 30 seconds before placing another pixel" },
-});
-
 // Get current canvas state
 app.get("/api/canvas", (req, res) => {
   // Transform 2D array into array of pixels
@@ -62,7 +54,7 @@ app.get("/api/canvas", (req, res) => {
 });
 
 // Place a pixel
-app.post("/api/pixel", pixelLimiter, (req, res) => {
+app.post("/api/pixel", (req, res) => {
   const { x, y, color } = req.body;
   const ip = req.ip;
 

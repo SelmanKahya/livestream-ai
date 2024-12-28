@@ -42,7 +42,13 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: ["https://livestream-ai-web.onrender.com", "http://localhost:3000"],
+    methods: ["GET", "POST"],
+    credentials: true,
+  })
+);
 app.use(bodyParser.json({ limit: "10mb" }));
 
 // Initialize the model

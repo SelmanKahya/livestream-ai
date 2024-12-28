@@ -4,6 +4,40 @@ const bodyParser = require("body-parser");
 const tf = require("@tensorflow/tfjs");
 const { createCanvas, Image } = require("canvas");
 
+// Task queue implementation
+class TaskQueue {
+  constructor() {
+    this.queue = [];
+    this.processing = false;
+  }
+
+  async addTask(task) {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ task, resolve, reject });
+      this.processNext();
+    });
+  }
+
+  async processNext() {
+    if (this.processing || this.queue.length === 0) return;
+
+    this.processing = true;
+    const { task, resolve, reject } = this.queue.shift();
+
+    try {
+      const result = await task();
+      resolve(result);
+    } catch (error) {
+      reject(error);
+    } finally {
+      this.processing = false;
+      this.processNext();
+    }
+  }
+}
+
+const taskQueue = new TaskQueue();
+
 const app = express();
 const port = process.env.PORT || 3001;
 
@@ -97,31 +131,39 @@ app.post("/train", async (req, res) => {
   try {
     const { digit, imageData } = req.body;
 
-    console.log("Training digit:", digit, "Image data:", imageData);
+    // Add task to queue without waiting for completion
+    taskQueue.addTask(async () => {
+      try {
+        console.log("Training digit:", digit);
 
-    if (!model) {
-      model = await createModel();
-    }
+        if (!model) {
+          model = await createModel();
+        }
 
-    // Process image data
-    const tensor = await processImageData(imageData);
+        // Process image data
+        const tensor = await processImageData(imageData);
+        const label = tf.oneHot(tf.tensor1d([digit], "int32"), 10);
 
-    // Create one-hot encoded label
-    const label = tf.oneHot(tf.tensor1d([digit], "int32"), 10);
+        // Train the model
+        await model.fit(tensor, label, {
+          epochs: 1,
+          batchSize: 1,
+        });
 
-    // Train the model
-    await model.fit(tensor, label, {
-      epochs: 1,
-      batchSize: 1,
+        // Cleanup
+        tensor.dispose();
+        label.dispose();
+
+        console.log("Training completed for digit:", digit);
+      } catch (error) {
+        console.error("Training error for digit", digit, ":", error);
+      }
     });
 
-    // Cleanup
-    tensor.dispose();
-    label.dispose();
-
-    res.json({ success: true });
+    // Return success response after task is queued
+    res.json({ success: true, message: "Training task queued" });
   } catch (error) {
-    console.error("Training error:", error);
+    console.error("Error queueing training task:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

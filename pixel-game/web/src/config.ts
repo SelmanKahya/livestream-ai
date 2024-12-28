@@ -1,1 +1,1 @@
-export const BACKEND_BASE_URL = "http://localhost:3001";
+export const BACKEND_BASE_URL = "https://livestream-ai-1.onrender.com";

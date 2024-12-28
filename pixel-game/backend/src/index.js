@@ -7,7 +7,7 @@ const port = process.env.PORT || 3001;
 
 // CORS configuration
 const corsOptions = {
-  origin: ["http://localhost:3000", "http://127.0.0.1:3000"], // Frontend URLs
+  origin: "*", // Allow any origin
   methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type"],
   maxAge: 86400, // Cache preflight requests for 24 hours

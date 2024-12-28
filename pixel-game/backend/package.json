@@ -1,0 +1,18 @@
+{
+    "name": "pixel-game-backend",
+    "version": "1.0.0",
+    "description": "Backend for collaborative pixel art game",
+    "main": "src/index.js",
+    "scripts": {
+        "start": "node src/index.js",
+        "dev": "nodemon src/index.js"
+    },
+    "dependencies": {
+        "express": "^4.18.2",
+        "express-rate-limit": "^7.1.5",
+        "cors": "^2.8.5"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.2"
+    }
+}

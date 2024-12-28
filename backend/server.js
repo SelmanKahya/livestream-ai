@@ -20,8 +20,9 @@ const predictLimiter = rateLimit({
     "Too many prediction requests from this IP, please try again after a minute",
 });
 
-// Track training counts per digit
-const digitTrainingCounts = new Array(10).fill(0);
+// Training data storage
+const trainingData = Array.from({ length: 10 }, () => []);
+const SAMPLES_PER_DIGIT = 30;
 const MAX_TRAINING_PER_DIGIT = 200;
 
 // Task queue implementation
@@ -152,55 +153,117 @@ async function processImageData(base64Image) {
   });
 }
 
+// Helper function to check if we have enough samples
+function hasEnoughSamples() {
+  return trainingData.every((samples) => samples.length >= SAMPLES_PER_DIGIT);
+}
+
 // Training endpoint
 app.post("/train", trainLimiter, async (req, res) => {
   try {
     const { digit, imageData } = req.body;
 
     // Check if we've reached the training limit for this digit
-    if (digitTrainingCounts[digit] >= MAX_TRAINING_PER_DIGIT) {
+    if (trainingData[digit].length >= MAX_TRAINING_PER_DIGIT) {
       return res.status(429).json({
         success: false,
         message: `Training limit reached for digit ${digit}. Maximum ${MAX_TRAINING_PER_DIGIT} samples allowed.`,
       });
     }
 
-    // Increment the counter for this digit
-    digitTrainingCounts[digit]++;
+    // Process and store the image data
+    const tensor = await processImageData(imageData);
+    trainingData[digit].push(tensor);
 
-    // Add task to queue without waiting for completion
-    taskQueue.addTask(async () => {
-      try {
-        console.log("Training digit:", digit);
+    const currentCount = trainingData[digit].length;
+    const remainingSamples = SAMPLES_PER_DIGIT - currentCount;
 
-        if (!model) {
-          model = await createModel();
-        }
+    res.json({
+      success: true,
+      message: `Sample stored for digit ${digit}. Need ${remainingSamples} more samples for this digit.`,
+      currentCount,
+      remainingSamples,
+    });
+  } catch (error) {
+    console.error("Error storing training data:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
-        // Process image data
-        const tensor = await processImageData(imageData);
-        const label = tf.oneHot(tf.tensor1d([digit], "int32"), 10);
+// Get training status endpoint
+app.get("/training-status", async (req, res) => {
+  const status = trainingData.map((samples, digit) => ({
+    digit,
+    currentCount: samples.length,
+    remainingSamples: SAMPLES_PER_DIGIT - samples.length,
+  }));
 
-        // Train the model
-        await model.fit(tensor, label, {
-          epochs: 1,
-          batchSize: 1,
+  res.json({
+    status,
+    readyForTraining: hasEnoughSamples(),
+  });
+});
+
+// Batch training endpoint
+app.post("/train-batch", async (req, res) => {
+  try {
+    if (!hasEnoughSamples()) {
+      return res.status(400).json({
+        success: false,
+        message: "Not enough samples collected for all digits",
+      });
+    }
+
+    await taskQueue.addTask(async () => {
+      if (!model) {
+        model = await createModel();
+      }
+
+      // Prepare batch training data
+      const batchX = [];
+      const batchY = [];
+
+      trainingData.forEach((samples, digit) => {
+        samples.slice(0, SAMPLES_PER_DIGIT).forEach((tensor) => {
+          batchX.push(tensor.arraySync()[0]); // Convert tensor to array
         });
 
-        // Cleanup
-        tensor.dispose();
-        label.dispose();
+        // Create one-hot encoded labels
+        const labels = new Array(SAMPLES_PER_DIGIT).fill(0);
+        labels.forEach((_, i) => {
+          const label = new Array(10).fill(0);
+          label[digit] = 1;
+          batchY.push(label);
+        });
+      });
 
-        console.log("Training completed for digit:", digit);
-      } catch (error) {
-        console.error("Training error for digit", digit, ":", error);
-      }
+      // Convert to tensors
+      const xTensor = tf.tensor4d(batchX, [batchX.length, 28, 28, 1]);
+      const yTensor = tf.tensor2d(batchY);
+
+      // Train the model
+      await model.fit(xTensor, yTensor, {
+        epochs: 10,
+        batchSize: 32,
+        shuffle: true,
+      });
+
+      // Cleanup
+      xTensor.dispose();
+      yTensor.dispose();
+      trainingData.forEach((samples) => {
+        samples.forEach((tensor) => tensor.dispose());
+      });
+
+      // Clear training data
+      trainingData.forEach((_, i) => (trainingData[i] = []));
+
+      console.log("Batch training completed");
     });
 
-    // Return success response after task is queued
-    res.json({ success: true, message: "Training task queued" });
+    res.json({ success: true, message: "Batch training started" });
   } catch (error) {
-    console.error("Error queueing training task:", error);
+    console.error("Batch training error:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

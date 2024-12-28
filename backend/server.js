@@ -3,6 +3,22 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const tf = require("@tensorflow/tfjs");
 const { createCanvas, Image } = require("canvas");
+const rateLimit = require("express-rate-limit");
+
+// Rate limiting configuration
+const trainLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // Limit each IP to 10 training requests per minute
+  message:
+    "Too many training requests from this IP, please try again after a minute",
+});
+
+const predictLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // Limit each IP to 30 prediction requests per minute
+  message:
+    "Too many prediction requests from this IP, please try again after a minute",
+});
 
 // Task queue implementation
 class TaskQueue {
@@ -133,7 +149,7 @@ async function processImageData(base64Image) {
 }
 
 // Training endpoint
-app.post("/train", async (req, res) => {
+app.post("/train", trainLimiter, async (req, res) => {
   try {
     const { digit, imageData } = req.body;
 
@@ -175,7 +191,7 @@ app.post("/train", async (req, res) => {
 });
 
 // Prediction endpoint
-app.post("/guess", async (req, res) => {
+app.post("/guess", predictLimiter, async (req, res) => {
   try {
     const { imageData } = req.body;
 

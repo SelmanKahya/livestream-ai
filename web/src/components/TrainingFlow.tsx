@@ -8,8 +8,15 @@ interface TrainingFlowProps {
 }
 
 const TrainingFlow: React.FC<TrainingFlowProps> = ({ onComplete }) => {
-  const [currentDigit, setCurrentDigit] = React.useState(0);
+  const [remainingDigits, setRemainingDigits] = React.useState<number[]>(() => {
+    // Initialize with shuffled array of digits 0-9
+    return Array.from({ length: 10 }, (_, i) => i).sort(
+      () => Math.random() - 0.5
+    );
+  });
   const [isLoading, setIsLoading] = React.useState(false);
+
+  const currentDigit = remainingDigits[0];
 
   const handleSubmit = async (imageData: string) => {
     setIsLoading(true);
@@ -19,8 +26,8 @@ const TrainingFlow: React.FC<TrainingFlowProps> = ({ onComplete }) => {
         imageData,
       });
 
-      if (currentDigit < 9) {
-        setCurrentDigit((prev) => prev + 1);
+      if (remainingDigits.length > 1) {
+        setRemainingDigits((prev) => prev.slice(1));
       } else {
         onComplete();
       }
@@ -36,7 +43,7 @@ const TrainingFlow: React.FC<TrainingFlowProps> = ({ onComplete }) => {
     <div className="training-flow">
       <h2>Training Mode</h2>
       <p>Draw digit: {currentDigit}</p>
-      <p className="progress">Progress: {currentDigit + 1}/10</p>
+      <p className="progress">Progress: {10 - remainingDigits.length + 1}/10</p>
       <DrawingCanvas onSubmit={handleSubmit} />
       {isLoading && <p>Submitting...</p>}
     </div>

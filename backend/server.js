@@ -8,7 +8,7 @@ const rateLimit = require("express-rate-limit");
 // Rate limiting configuration
 const trainLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 10, // Limit each IP to 10 training requests per minute
+  max: 15, // Limit each IP to 10 training requests per minute
   message:
     "Too many training requests from this IP, please try again after a minute",
 });

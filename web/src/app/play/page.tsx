@@ -19,6 +19,24 @@ export default function PlayPage() {
   useEffect(() => {
     fetchIterations();
     fetchCurrentIteration();
+
+    // Set up polling interval for iterations
+    const pollingInterval = setInterval(() => {
+      fetchIterations();
+    }, 30000); // 30 seconds
+
+    // Add global event listener for arrow keys
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      clearInterval(pollingInterval); // Clean up interval on unmount
+    };
   }, []);
 
   const fetchIterations = async () => {
@@ -71,69 +89,45 @@ export default function PlayPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-gray-300">
-      <div className="container mx-auto p-4 space-y-8">
-        <div className="bg-gray-950 rounded-lg shadow-lg overflow-hidden border border-gray-800">
+    <div className="min-h-screen bg-black text-gray-300 relative">
+      <div className="fixed inset-0">
+        <div
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (
+              ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(
+                e.key
+              )
+            ) {
+              e.preventDefault();
+            }
+          }}
+          className="w-full h-full"
+        >
           <iframe
             src={`/api/play-iframe${
               selectedIteration ? `?iterationId=${selectedIteration}` : ""
             }`}
-            className="w-full aspect-square max-h-[800px] border-0"
+            className="w-full h-full border-0"
             title="Program Output"
           />
         </div>
+      </div>
 
-        <div className="space-y-4">
-          <h1 className="text-2xl font-bold text-gray-200">
-            Program Iterations
-          </h1>
-          <div className="bg-gray-950 rounded-lg shadow-lg overflow-hidden border border-gray-800">
-            <table className="min-w-full divide-y divide-gray-800">
-              <thead className="bg-gray-950">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Iteration ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Created At
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800">
-                {iterations.map((iteration) => (
-                  <tr
-                    key={iteration.id}
-                    className="bg-gray-950 hover:bg-gray-900 transition-colors"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                      {iteration.id}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                      {new Date(iteration.created_at).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <button
-                        onClick={() => handleIterationSelect(iteration.id)}
-                        className={`px-4 py-2 rounded-md transition-colors ${
-                          selectedIteration === iteration.id
-                            ? "bg-emerald-950 hover:bg-emerald-900 text-emerald-200"
-                            : "bg-indigo-950 hover:bg-indigo-900 text-indigo-200"
-                        }`}
-                      >
-                        {selectedIteration === iteration.id
-                          ? "Active"
-                          : "Select"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <div className="absolute top-16 right-4 z-10 w-80">
+        <select
+          value={selectedIteration || ""}
+          onChange={(e) => handleIterationSelect(Number(e.target.value))}
+          className="w-full bg-gray-900/90 backdrop-blur text-gray-300 px-4 py-2 rounded-md border border-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="">Select an iteration</option>
+          {iterations.map((iteration) => (
+            <option key={iteration.id} value={iteration.id}>
+              Iteration {iteration.id} -{" "}
+              {new Date(iteration.created_at).toLocaleString()}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
   );

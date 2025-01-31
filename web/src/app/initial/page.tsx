@@ -2,13 +2,45 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 export default function Home() {
   const [idea, setIdea] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleContinue = () => {
-    router.push("/iteration");
+  const handleContinue = async () => {
+    if (!idea.trim()) {
+      setError("Please enter an idea first");
+      return;
+    }
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push("/"); // Redirect to auth page if not logged in
+        return;
+      }
+
+      const { error: insertError } = await supabase
+        .from("program_input")
+        .insert({
+          input_text: idea,
+          profile_id: user.id,
+        });
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      router.push("/iteration");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save your idea");
+      console.error("Error saving idea:", err);
+    }
   };
 
   return (
@@ -32,7 +64,7 @@ export default function Home() {
                 transition-all duration-200 ease-out placeholder:text-zinc-700"
               placeholder="Type your idea here..."
             />
-
+            {error && <p className="text-red-500 text-sm">{error}</p>}
             <button
               onClick={handleContinue}
               className="mt-8 px-10 py-4 bg-white text-black rounded-xl

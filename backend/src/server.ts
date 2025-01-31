@@ -114,7 +114,7 @@ async function updateProgramState() {
         const combinedIdea = await processInputsWithClaude();
 
         if (combinedIdea) {
-          console.log("💾 Storing combined idea...");
+          console.log("💾 Storing combined idea...", combinedIdea);
           // Store the combined idea in program_code
           const { data: newCode, error: insertError } = await supabaseAdmin
             .from("program_code")
@@ -133,7 +133,8 @@ async function updateProgramState() {
               {
                 role: "user",
                 content: `Convert this web application idea into a complete, working HTML implementation. 
-                Use only vanilla HTML, CSS, and JavaScript - no external libraries or frameworks. 
+                Use only vanilla HTML, CSS, and JavaScript - no external libraries or frameworks.
+                Do not use alert() - instead use DOM manipulation to show messages or feedback to users.
                 Return ONLY the complete code, nothing else. Here's the idea:\n\n${combinedIdea} - now return html code only.`,
               },
             ],
@@ -300,7 +301,7 @@ async function startPeriodicCodeUpdates() {
         messages: [
           {
             role: "user",
-            content: `Here is the current HTML/JavaScript/CSS implementation:\n\n${currentCode.code}\n\nHere is a prioritized summary of new features to implement:\n\n${summaryContent.text}\n\nPlease update the implementation to incorporate these modifications while maintaining the core functionality. The changes should enhance the interactive and playable nature of the application. Return ONLY the complete updated code, nothing else. The code should be a complete, working implementation using only vanilla HTML, CSS, and JavaScript (no external libraries or frameworks).`,
+            content: `Here is the current HTML/JavaScript/CSS implementation:\n\n${currentCode.code}\n\nHere is a prioritized summary of new features to implement:\n\n${summaryContent.text}\n\nPlease update the implementation to incorporate these modifications while maintaining the core functionality. The changes should enhance the interactive and playable nature of the application. Do not use alert() - instead use DOM manipulation to show messages or feedback to users. Return ONLY the complete updated code, nothing else. The code should be a complete, working implementation using only vanilla HTML, CSS, and JavaScript (no external libraries or frameworks).`,
           },
         ],
       });

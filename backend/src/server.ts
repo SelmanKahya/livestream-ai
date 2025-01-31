@@ -193,7 +193,7 @@ async function updateProgramState() {
       } catch (error) {
         console.error("❌ INITIAL phase failed:", error);
       }
-    }, 10000); // 5 minutes in milliseconds
+    }, 120000); // 5 minutes in milliseconds
   } catch (error) {
     console.error("❌ State update failed:", error);
   }
@@ -207,7 +207,7 @@ async function startPeriodicCodeUpdates() {
     return;
   }
 
-  const updateInterval = 30000; // 2 minutes in milliseconds
+  const updateInterval = 90000; // 2 minutes in milliseconds
 
   const periodicUpdate = async () => {
     console.log("🔄 Running periodic update...");

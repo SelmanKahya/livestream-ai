@@ -16,6 +16,19 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/_next/static/css/:path*",
+        headers: [
+          {
+            key: "Content-Type",
+            value: "text/css",
+          },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
         source: "/_next/static/:path*",
         headers: [
           {

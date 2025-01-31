@@ -145,11 +145,21 @@ async function updateProgramState() {
             throw new Error("Unexpected response format from Claude");
           }
 
+          // Extract HTML code from response
+          const extractHtmlCode = (text: string): string => {
+            const htmlMatch = text.match(/```html\n([\s\S]*?)```/);
+            if (!htmlMatch) {
+              // If no HTML code block found, assume the entire response is HTML code
+              return text;
+            }
+            return htmlMatch[1];
+          };
+
           // Store the HTML implementation
           console.log("💾 Storing HTML implementation...");
           const { error: htmlInsertError } = await supabaseAdmin
             .from("program_code")
-            .update({ code: htmlContent.text })
+            .update({ code: extractHtmlCode(htmlContent.text) })
             .eq("id", newCode.id);
 
           if (htmlInsertError) throw htmlInsertError;
@@ -207,11 +217,89 @@ async function startPeriodicCodeUpdates() {
     }
 
     try {
+      // Get current program state
+      const { data: programState, error: stateError } = await supabaseAdmin
+        .from("program_state")
+        .select("current_iteration")
+        .eq("id", 1)
+        .single();
+
+      if (stateError) throw stateError;
+      if (!programState.current_iteration) {
+        console.log("ℹ️ No current iteration found");
+        return;
+      }
+
+      // Fetch inputs for the current iteration
+      const { data: inputs, error: inputError } = await supabaseAdmin
+        .from("program_input")
+        .select("input_text, profile_id")
+        .eq("iteration_id", programState.current_iteration);
+
+      if (inputError) throw inputError;
+      if (!inputs || inputs.length === 0) {
+        console.log("ℹ️ No inputs for current iteration");
+        return;
+      }
+
+      // Create a Map to store one input per user (profile)
+      const profileInputs = new Map();
+      inputs.forEach((input) => {
+        profileInputs.set(input.profile_id, input.input_text);
+      });
+
+      if (profileInputs.size === 0) {
+        console.log("ℹ️ No unique profile inputs found");
+        return;
+      }
+
+      // Get the current code
+      const { data: currentCode, error: codeError } = await supabaseAdmin
+        .from("program_code")
+        .select("code")
+        .eq("id", programState.current_iteration)
+        .single();
+
+      if (codeError) throw codeError;
+
+      // Format inputs for Claude, slicing to 70 chars
+      const inputsText = Array.from(profileInputs.values())
+        .map((text, index) => `${index + 1}. ${text.slice(0, 70)}`)
+        .join("\n");
+
+      // Get Claude's updated implementation
+      console.log("🤖 Generating updated implementation with Claude...");
+      const message = await anthropic.messages.create({
+        model: "claude-3-5-sonnet-20241022",
+        max_tokens: 8000,
+        messages: [
+          {
+            role: "user",
+            content: `Here is the current HTML/JavaScript/CSS implementation:\n\n${currentCode.code}\n\nHere are new modification requests from users:\n\n${inputsText}\n\nPlease update the implementation to incorporate these modifications while maintaining the core functionality. Return ONLY the complete updated code, nothing else. The code should be a complete, working implementation using only vanilla HTML, CSS, and JavaScript (no external libraries or frameworks).`,
+          },
+        ],
+      });
+
+      const content = message.content[0];
+      if (content.type !== "text") {
+        throw new Error("Unexpected response format from Claude");
+      }
+
+      // Extract HTML code from response
+      const extractHtmlCode = (text: string): string => {
+        const htmlMatch = text.match(/```html\n([\s\S]*?)```/);
+        if (!htmlMatch) {
+          // If no HTML code block found, assume the entire response is HTML code
+          return text;
+        }
+        return htmlMatch[1];
+      };
+
+      // Create new iteration with updated code
       console.log("📝 Creating new iteration...");
-      // Insert new row in program_code
       const { data: newCode, error: insertError } = await supabaseAdmin
         .from("program_code")
-        .insert({ code: "// New iteration" })
+        .insert({ code: extractHtmlCode(content.text) })
         .select()
         .single();
 

@@ -6,9 +6,7 @@ import { supabase } from "@/lib/supabase";
 export default function IterationScreen() {
   const [timeLeft, setTimeLeft] = useState(120);
   const [iterationNumber, setIterationNumber] = useState(1);
-  const [modificationRequest, setModificationRequest] = useState(
-    "ADD ENEMY ATTACKING THE SNAKE"
-  );
+  const [modificationRequest, setModificationRequest] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

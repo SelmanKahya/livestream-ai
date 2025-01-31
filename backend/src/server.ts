@@ -290,7 +290,10 @@ async function startPeriodicCodeUpdates() {
       }
 
       // Now generate the implementation with the summarized features
-      console.log("🤖 Generating updated implementation with Claude...");
+      console.log(
+        "🤖 Generating updated implementation with Claude...",
+        summaryContent
+      );
       const message = await anthropic.messages.create({
         model: "claude-3-5-sonnet-20241022",
         max_tokens: 8000,

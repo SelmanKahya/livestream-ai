@@ -71,62 +71,68 @@ export default function PlayPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
-      <div className="container mx-auto p-4">
-        <div className="bg-gray-800 rounded-lg shadow mb-8">
+    <div className="min-h-screen bg-black text-gray-300">
+      <div className="container mx-auto p-4 space-y-8">
+        <div className="bg-gray-950 rounded-lg shadow-lg overflow-hidden border border-gray-800">
           <iframe
-            src="/api/play-iframe"
-            className="w-[500px] h-[500px] border-0 rounded-lg mx-auto block"
+            src={`/api/play-iframe${
+              selectedIteration ? `?iterationId=${selectedIteration}` : ""
+            }`}
+            className="w-full aspect-square max-h-[800px] border-0"
             title="Program Output"
           />
         </div>
 
-        <h1 className="text-2xl font-bold mb-4 text-white">
-          Program Iterations
-        </h1>
-        <div className="bg-gray-800 rounded-lg shadow overflow-hidden">
-          <table className="min-w-full">
-            <thead className="bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  Iteration ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  Created At
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-700">
-              {iterations.map((iteration) => (
-                <tr
-                  key={iteration.id}
-                  className="bg-gray-800 hover:bg-gray-700"
-                >
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                    {iteration.id}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                    {new Date(iteration.created_at).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <button
-                      onClick={() => handleIterationSelect(iteration.id)}
-                      className={`px-4 py-2 rounded ${
-                        selectedIteration === iteration.id
-                          ? "bg-green-600 text-white"
-                          : "bg-blue-600 text-white hover:bg-blue-700"
-                      }`}
-                    >
-                      {selectedIteration === iteration.id ? "Active" : "Select"}
-                    </button>
-                  </td>
+        <div className="space-y-4">
+          <h1 className="text-2xl font-bold text-gray-200">
+            Program Iterations
+          </h1>
+          <div className="bg-gray-950 rounded-lg shadow-lg overflow-hidden border border-gray-800">
+            <table className="min-w-full divide-y divide-gray-800">
+              <thead className="bg-gray-950">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    Iteration ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    Created At
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-800">
+                {iterations.map((iteration) => (
+                  <tr
+                    key={iteration.id}
+                    className="bg-gray-950 hover:bg-gray-900 transition-colors"
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                      {iteration.id}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
+                      {new Date(iteration.created_at).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <button
+                        onClick={() => handleIterationSelect(iteration.id)}
+                        className={`px-4 py-2 rounded-md transition-colors ${
+                          selectedIteration === iteration.id
+                            ? "bg-emerald-950 hover:bg-emerald-900 text-emerald-200"
+                            : "bg-indigo-950 hover:bg-indigo-900 text-indigo-200"
+                        }`}
+                      >
+                        {selectedIteration === iteration.id
+                          ? "Active"
+                          : "Select"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

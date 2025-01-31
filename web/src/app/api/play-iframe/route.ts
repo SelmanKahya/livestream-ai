@@ -13,14 +13,20 @@ const supabaseAdmin = createClient(
   }
 );
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const { data, error } = await supabaseAdmin
-      .from("program_code")
-      .select("code")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
+    const { searchParams } = new URL(request.url);
+    const iterationId = searchParams.get("iterationId");
+
+    let query = supabaseAdmin.from("program_code").select("code");
+
+    if (iterationId) {
+      query = query.eq("id", iterationId);
+    } else {
+      query = query.order("created_at", { ascending: false });
+    }
+
+    const { data, error } = await query.limit(1).single();
 
     if (error) {
       console.error("Error fetching program code:", error);

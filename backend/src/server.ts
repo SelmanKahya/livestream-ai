@@ -207,7 +207,7 @@ async function startPeriodicCodeUpdates() {
     return;
   }
 
-  const updateInterval = 90000; // 2 minutes in milliseconds
+  const updateInterval = 120000; // 2 minutes in milliseconds
 
   const periodicUpdate = async () => {
     console.log("🔄 Running periodic update...");
@@ -267,7 +267,29 @@ async function startPeriodicCodeUpdates() {
         .map((text, index) => `${index + 1}. ${text.slice(0, 70)}`)
         .join("\n");
 
-      // Get Claude's updated implementation
+      // First, get Claude to summarize and prioritize the feature requests
+      console.log(
+        "🤖 Summarizing and prioritizing feature requests with Claude..."
+      );
+      const summaryMessage = await anthropic.messages.create({
+        model: "claude-3-5-sonnet-20241022",
+        max_tokens: 8000,
+        messages: [
+          {
+            role: "user",
+            content: `Here are new feature/modification requests for a web application:\n\n${inputsText}\n\nPlease analyze these requests and:\n1. Identify common themes and patterns\n2. Select the top 5 most impactful and feasible features\n3. Propose creative ways to combine or enhance these features\n4. Ensure the features maintain the application's playable/interactive nature\n\nProvide a concise summary of the chosen features and how they should be integrated.`,
+          },
+        ],
+      });
+
+      const summaryContent = summaryMessage.content[0];
+      if (summaryContent.type !== "text") {
+        throw new Error(
+          "Unexpected response format from Claude during summarization"
+        );
+      }
+
+      // Now generate the implementation with the summarized features
       console.log("🤖 Generating updated implementation with Claude...");
       const message = await anthropic.messages.create({
         model: "claude-3-5-sonnet-20241022",
@@ -275,7 +297,7 @@ async function startPeriodicCodeUpdates() {
         messages: [
           {
             role: "user",
-            content: `Here is the current HTML/JavaScript/CSS implementation:\n\n${currentCode.code}\n\nHere are new modification requests from users:\n\n${inputsText}\n\nPlease update the implementation to incorporate these modifications while maintaining the core functionality. Return ONLY the complete updated code, nothing else. The code should be a complete, working implementation using only vanilla HTML, CSS, and JavaScript (no external libraries or frameworks).`,
+            content: `Here is the current HTML/JavaScript/CSS implementation:\n\n${currentCode.code}\n\nHere is a prioritized summary of new features to implement:\n\n${summaryContent.text}\n\nPlease update the implementation to incorporate these modifications while maintaining the core functionality. The changes should enhance the interactive and playable nature of the application. Return ONLY the complete updated code, nothing else. The code should be a complete, working implementation using only vanilla HTML, CSS, and JavaScript (no external libraries or frameworks).`,
           },
         ],
       });
